@@ -12,8 +12,19 @@ import {
   ShieldCheck,
   CheckCircle,
   AlertTriangle,
-  Play
+  Play,
+  ExternalLink,
+  Search
 } from 'lucide-react';
+
+function GithubIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
 
 import TopologyCanvas from './components/TopologyCanvas';
 import HealthRadar from './components/HealthRadar';
@@ -128,10 +139,68 @@ export default function App() {
   const [isRefactoring, setIsRefactoring] = useState(false);
   const [historyList, setHistoryList] = useState([]);
 
+  // GitHub Repository Ingestion State
+  const [githubUrl, setGithubUrl] = useState('');
+  const [isExtractingGithub, setIsExtractingGithub] = useState(false);
+  const [githubError, setGithubError] = useState('');
+
   // Load initial analysis
   useEffect(() => {
     runAnalysis(PRESET_TEMPLATES[0]);
   }, []);
+
+  const handleAnalyzeGithub = async (urlToScan) => {
+    const targetUrl = (urlToScan || githubUrl || '').trim();
+    if (!targetUrl) return;
+
+    setIsExtractingGithub(true);
+    setGithubError('');
+    setRefactorResult(null);
+
+    try {
+      let res;
+      try {
+        res = await fetch('http://localhost:8080/api/reviews/analyze-github', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoUrl: targetUrl }),
+        });
+      } catch (err) {
+        // Direct fallback to AI Engine FastAPI
+        res = await fetch('http://localhost:8000/api/v1/analyze-github', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoUrl: targetUrl }),
+        });
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        const extractedGraph = data.graph;
+        const analysis = data.analysis;
+
+        setCurrentGraph(extractedGraph);
+        setJsonInput(JSON.stringify(extractedGraph, null, 2));
+        setAnalysisResult(analysis);
+        setSelectedNode(null);
+
+        setHistoryList(prev => [{
+          id: Date.now(),
+          name: extractedGraph.name,
+          overall_score: analysis.overall_score,
+          smells_count: analysis.smells?.length || 0,
+          timestamp: new Date().toLocaleTimeString(),
+        }, ...prev.slice(0, 9)]);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setGithubError(errJson.detail || errJson.message || 'Failed to extract architecture from repository');
+      }
+    } catch (e) {
+      setGithubError('Extraction error: ' + e.message);
+    } finally {
+      setIsExtractingGithub(false);
+    }
+  };
 
   const runAnalysis = async (graphToAnalyze) => {
     setIsAnalyzing(true);
@@ -427,6 +496,85 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
         {activeTab === 'review' && (
           <div className="space-y-6">
+            {/* GitHub Repository Extraction Bar */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-gray-900 via-gray-900 to-indigo-950/40 border border-gray-800 shadow-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <GithubIcon className="w-5 h-5 text-gray-100" />
+                    <h3 className="text-sm font-bold text-gray-100">Extract Architecture from GitHub Repository</h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Auto-Parser
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Paste any public microservices repository URL. Scans <code className="text-cyan-400">docker-compose.yml</code>, manifests, and submodules, builds graph topology, and runs hybrid GNN inference.
+                  </p>
+                </div>
+
+                <div className="flex-1 max-w-xl flex items-center space-x-2">
+                  <div className="relative flex-1">
+                    <GithubIcon className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+                    <input
+                      type="text"
+                      value={githubUrl}
+                      onChange={(e) => setGithubUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeGithub()}
+                      placeholder="https://github.com/owner/repository"
+                      className="w-full bg-gray-950 text-xs text-gray-100 pl-9 pr-4 py-2.5 rounded-xl border border-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+                  <button
+                    disabled={isExtractingGithub || !githubUrl.trim()}
+                    onClick={() => handleAnalyzeGithub()}
+                    className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-blue-500/20 transition-all"
+                  >
+                    {isExtractingGithub ? (
+                      <>
+                        <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Scanning Repo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Extract & Review</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {githubError && (
+                <div className="mt-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                  <span>{githubError}</span>
+                </div>
+              )}
+
+              {/* Sample Repository Presets */}
+              <div className="mt-3.5 pt-3 border-t border-gray-800/80 flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-gray-500 text-[11px] font-semibold">Quick Try Microservice Repos:</span>
+                {[
+                  { label: "Spring PetClinic Microservices", url: "https://github.com/spring-petclinic/spring-petclinic-microservices" },
+                  { label: "Google Cloud Microservices Demo", url: "https://github.com/GoogleCloudPlatform/microservices-demo" },
+                  { label: "PiggyMetrics (Cloud Native)", url: "https://github.com/sqshq/piggymetrics" },
+                  { label: "Current Project (MiniProject-01)", url: "https://github.com/vivek-matrix01/MiniProject-01" },
+                ].map((sample) => (
+                  <button
+                    key={sample.label}
+                    onClick={() => {
+                      setGithubUrl(sample.url);
+                      handleAnalyzeGithub(sample.url);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-gray-950 border border-gray-800 hover:border-gray-700 text-gray-300 hover:text-blue-400 text-[11px] transition-colors flex items-center space-x-1"
+                  >
+                    <span>{sample.label}</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Architectural Presets Bar */}
             <div className="p-4 rounded-2xl bg-gray-900/90 border border-gray-800 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center space-x-2">

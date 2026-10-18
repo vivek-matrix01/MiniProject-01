@@ -24,15 +24,29 @@ public class ArchitectureReviewService {
     private final ReviewReportRepository reportRepository;
     private final AiEngineClient aiEngineClient;
     private final ObjectMapper objectMapper;
+    private final GitHubArchitectureExtractorService gitHubExtractorService;
 
     public ArchitectureReviewService(ArchitectureDesignRepository architectureRepository,
                                      ReviewReportRepository reportRepository,
                                      AiEngineClient aiEngineClient,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     GitHubArchitectureExtractorService gitHubExtractorService) {
         this.architectureRepository = architectureRepository;
         this.reportRepository = reportRepository;
         this.aiEngineClient = aiEngineClient;
         this.objectMapper = objectMapper;
+        this.gitHubExtractorService = gitHubExtractorService;
+    }
+
+    public Map<String, Object> reviewFromGitHub(String repoUrl, String token) {
+        ArchitectureGraphDto extractedGraph = gitHubExtractorService.extractArchitectureFromRepo(repoUrl, token);
+        AnalysisResultDto analysis = reviewAndSave(extractedGraph);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("graph", extractedGraph);
+        result.put("analysis", analysis);
+        result.put("repoUrl", repoUrl);
+        return result;
     }
 
     @Transactional

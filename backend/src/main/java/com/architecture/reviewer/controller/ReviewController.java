@@ -32,6 +32,14 @@ public class ReviewController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/analyze-github")
+    public ResponseEntity<Map<String, Object>> analyzeGitHubRepository(@RequestBody Map<String, String> request) {
+        String repoUrl = request.get("repoUrl");
+        String token = request.get("token");
+        Map<String, Object> result = reviewService.reviewFromGitHub(repoUrl, token);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/history")
     public ResponseEntity<List<ReviewReport>> getReviewHistory() {
         return ResponseEntity.ok(reviewService.getAllReports());
