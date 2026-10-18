@@ -3,8 +3,6 @@ import {
   Layers,
   Activity,
   Code2,
-  BookOpen,
-  History,
   RotateCw,
   Sparkles,
   Server,
@@ -14,8 +12,20 @@ import {
   AlertTriangle,
   Play,
   ExternalLink,
-  Search
+  Search,
+  Terminal,
+  Cpu,
+  ArrowRight,
+  TrendingUp,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+
+import TopologyCanvas from './components/TopologyCanvas';
+import HealthRadar from './components/HealthRadar';
+import SmellList from './components/SmellList';
+import CounterfactualPanel from './components/CounterfactualPanel';
 
 function GithubIcon({ className = "w-4 h-4" }) {
   return (
@@ -25,12 +35,6 @@ function GithubIcon({ className = "w-4 h-4" }) {
     </svg>
   );
 }
-
-import TopologyCanvas from './components/TopologyCanvas';
-import HealthRadar from './components/HealthRadar';
-import SmellList from './components/SmellList';
-import CounterfactualPanel from './components/CounterfactualPanel';
-import VivaReport from './components/VivaReport';
 
 const PRESET_TEMPLATES = [
   {
@@ -128,7 +132,7 @@ const PRESET_TEMPLATES = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('review'); // 'review' | 'studio' | 'viva' | 'history'
+  const [activeTab, setActiveTab] = useState('review'); // 'review' | 'studio'
   const [currentGraph, setCurrentGraph] = useState(PRESET_TEMPLATES[0]);
   const [jsonInput, setJsonInput] = useState(JSON.stringify(PRESET_TEMPLATES[0], null, 2));
   const [selectedNode, setSelectedNode] = useState(null);
@@ -137,17 +141,24 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [refactorResult, setRefactorResult] = useState(null);
   const [isRefactoring, setIsRefactoring] = useState(false);
-  const [historyList, setHistoryList] = useState([]);
 
   // GitHub Repository Ingestion State
   const [githubUrl, setGithubUrl] = useState('');
   const [isExtractingGithub, setIsExtractingGithub] = useState(false);
   const [githubError, setGithubError] = useState('');
+  const [showConsole, setShowConsole] = useState(false);
 
-  // Load initial analysis
+  // Diagnostic Log Stream
+  const [diagnosticLogs, setDiagnosticLogs] = useState([]);
+
   useEffect(() => {
     runAnalysis(PRESET_TEMPLATES[0]);
   }, []);
+
+  const addLog = (msg) => {
+    const time = new Date().toLocaleTimeString();
+    setDiagnosticLogs(prev => [`[${time}] ${msg}`, ...prev.slice(0, 49)]);
+  };
 
   const handleAnalyzeGithub = async (urlToScan) => {
     const targetUrl = (urlToScan || githubUrl || '').trim();
@@ -156,6 +167,7 @@ export default function App() {
     setIsExtractingGithub(true);
     setGithubError('');
     setRefactorResult(null);
+    addLog(`Initiating GitHub extraction pipeline: ${targetUrl}`);
 
     try {
       let res;
@@ -166,7 +178,6 @@ export default function App() {
           body: JSON.stringify({ repoUrl: targetUrl }),
         });
       } catch (err) {
-        // Direct fallback to AI Engine FastAPI
         res = await fetch('http://localhost:8000/api/v1/analyze-github', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -184,19 +195,16 @@ export default function App() {
         setAnalysisResult(analysis);
         setSelectedNode(null);
 
-        setHistoryList(prev => [{
-          id: Date.now(),
-          name: extractedGraph.name,
-          overall_score: analysis.overall_score,
-          smells_count: analysis.smells?.length || 0,
-          timestamp: new Date().toLocaleTimeString(),
-        }, ...prev.slice(0, 9)]);
+        addLog(`Extracted ${extractedGraph.nodes?.length} components and ${extractedGraph.edges?.length} dependencies.`);
+        addLog(`GNN Inference completed in ${analysis.inference_time_ms} ms. Overall score: ${analysis.overall_score}/100.`);
       } else {
         const errJson = await res.json().catch(() => ({}));
         setGithubError(errJson.detail || errJson.message || 'Failed to extract architecture from repository');
+        addLog(`GitHub extraction failed: ${githubError}`);
       }
     } catch (e) {
       setGithubError('Extraction error: ' + e.message);
+      addLog(`Extraction error: ${e.message}`);
     } finally {
       setIsExtractingGithub(false);
     }
@@ -205,8 +213,9 @@ export default function App() {
   const runAnalysis = async (graphToAnalyze) => {
     setIsAnalyzing(true);
     setRefactorResult(null);
+    addLog(`Running hybrid analysis for: "${graphToAnalyze.name}"`);
+
     try {
-      // First try Spring Boot backend on 8080 or fallback to AI Engine directly on 8000
       let res;
       try {
         res = await fetch('http://localhost:8080/api/reviews/analyze', {
@@ -215,7 +224,6 @@ export default function App() {
           body: JSON.stringify(graphToAnalyze),
         });
       } catch (err) {
-        // Fallback directly to Python FastAPI engine
         res = await fetch('http://localhost:8000/api/v1/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -226,72 +234,42 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAnalysisResult(data);
-        // Add to local history
-        setHistoryList(prev => [{
-          id: Date.now(),
-          name: graphToAnalyze.name,
-          overall_score: data.overall_score,
-          smells_count: data.smells?.length || 0,
-          timestamp: new Date().toLocaleTimeString(),
-        }, ...prev.slice(0, 9)]);
+        addLog(`Inference finished: Score ${data.overall_score}/100 with ${data.smells?.length} smells.`);
       }
     } catch (e) {
-      console.warn("Could not reach backend or AI engine, computing local deterministic analysis:", e);
-      // Client-side fallback computation
+      // Fallback
+      addLog(`Backend unreachable, using local deterministic engine: ${e.message}`);
       const fallbackSmells = [];
       const fallbackRecs = [];
-      const totalNodes = graphToAnalyze.nodes.length;
-      let spofCount = 0;
-      let dbSharedCount = 0;
+      let spof = 0;
+      let sharedDb = 0;
 
       graphToAnalyze.nodes.forEach(n => {
         if (n.node_type === 'Database' && n.replication_factor === 1) {
-          spofCount++;
+          spof++;
           fallbackSmells.push({
             node_id: n.id,
             node_label: n.label,
             smell_name: "SPOF",
             confidence: 0.94,
             severity: "CRITICAL",
-            description: `Component '${n.label}' is a Single Point of Failure with 1 replica under high load.`,
-            suggested_action: `Increase replication factor to 3.`,
+            description: `Database '${n.label}' operates with a single replica under high load.`,
+            suggested_action: "Scale replication factor to 3."
           });
           fallbackRecs.push({
             node_id: n.id,
             action_type: "INCREASE_REPLICAS",
-            description: `Scale '${n.label}' replicas to 3`,
+            description: `Scale '${n.label}' to 3 replicas`,
             target_attribute: "replication_factor",
             new_value: 3
           });
         }
-        if (n.node_type === 'Database') {
-          const inCount = graphToAnalyze.edges.filter(e => e.target === n.id).length;
-          if (inCount >= 3) {
-            dbSharedCount++;
-            fallbackSmells.push({
-              node_id: n.id,
-              node_label: n.label,
-              smell_name: "Shared_Database",
-              confidence: 0.91,
-              severity: "HIGH",
-              description: `Database '${n.label}' is directly coupled to ${inCount} services.`,
-              suggested_action: `Introduce Redis cache buffer or database-per-service pattern.`,
-            });
-            fallbackRecs.push({
-              node_id: n.id,
-              action_type: "INSERT_CACHE",
-              description: `Add Cache for '${n.label}'`,
-              target_attribute: "cache_attached",
-              new_value: true
-            });
-          }
-        }
       });
 
-      const rel = Math.max(20, 100 - (spofCount * 30));
-      const scal = Math.max(20, 100 - (dbSharedCount * 40));
-      const coup = 68.0;
-      const avail = Math.max(20, 100 - (spofCount * 45));
+      const rel = Math.max(25, 100 - (spof * 35));
+      const scal = 68.0;
+      const coup = 72.0;
+      const avail = Math.max(20, 100 - (spof * 45));
       const ov = Math.round((rel + scal + coup + avail) / 4);
 
       setAnalysisResult({
@@ -302,8 +280,8 @@ export default function App() {
         availability_score: avail,
         smells: fallbackSmells,
         counterfactual_recommendations: fallbackRecs,
-        inference_time_ms: 6.4,
-        analysis_engine: "Hybrid Neuro-Symbolic (Client-Side Backup Mode)"
+        inference_time_ms: 5.2,
+        analysis_engine: "Hybrid Neuro-Symbolic (Deterministic Fallback)"
       });
     } finally {
       setIsAnalyzing(false);
@@ -319,6 +297,8 @@ export default function App() {
 
   const handleSimulateRefactoring = async (mutation) => {
     setIsRefactoring(true);
+    addLog(`Simulating counterfactual mutation operator T_c(G): ${mutation.description}`);
+
     try {
       const payload = {
         graph: currentGraph,
@@ -343,17 +323,15 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setRefactorResult(data);
-      } else {
-        throw new Error("Refactor endpoint error");
+        addLog(`Counterfactual evaluated: Delta Score +${data.score_deltas?.Overall || 0} pts.`);
       }
     } catch (e) {
-      // Local fallback simulation
       const orig = {
-        Reliability: analysisResult?.reliability_score || 62,
+        Reliability: analysisResult?.reliability_score || 60,
         Scalability: analysisResult?.scalability_score || 55,
         Coupling: analysisResult?.coupling_score || 65,
-        Availability: analysisResult?.availability_score || 50,
-        Overall: analysisResult?.overall_score || 58,
+        Availability: analysisResult?.availability_score || 45,
+        Overall: analysisResult?.overall_score || 56,
       };
       const ref = {
         Reliability: Math.min(95, orig.Reliability + 18),
@@ -362,21 +340,15 @@ export default function App() {
         Availability: Math.min(95, orig.Availability + 28),
         Overall: Math.min(95, orig.Overall + 17),
       };
-      const deltas = {
-        Reliability: 18,
-        Scalability: 14,
-        Coupling: 8,
-        Availability: 28,
-        Overall: 17,
-      };
 
       setRefactorResult({
         original_scores: orig,
         refactored_scores: ref,
-        score_deltas: deltas,
+        score_deltas: { Reliability: 18, Scalability: 14, Coupling: 8, Availability: 28, Overall: 17 },
         summary: `Refactoring '${mutation.action_type}' improved Availability from ${orig.Availability} to ${ref.Availability} (+28 pts).`,
         applied_mutation: mutation
       });
+      addLog(`Fallback counterfactual simulated successfully.`);
     } finally {
       setIsRefactoring(false);
     }
@@ -384,7 +356,6 @@ export default function App() {
 
   const handleApplyRefactoredGraph = () => {
     if (!refactorResult?.refactored_graph) {
-      // If we don't have the explicit mutated graph from python, apply locally
       const copy = JSON.parse(JSON.stringify(currentGraph));
       const mut = refactorResult.applied_mutation;
       if (mut.action_type === 'INCREASE_REPLICAS') {
@@ -410,6 +381,7 @@ export default function App() {
       runAnalysis(refactorResult.refactored_graph);
     }
     setRefactorResult(null);
+    addLog(`Applied refactored graph mutation to active canvas.`);
   };
 
   const handleApplyJson = () => {
@@ -424,115 +396,114 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-gray-100 flex flex-col font-sans">
-      {/* Top Navbar */}
-      <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-md sticky top-0 z-50 px-6 py-3.5">
+    <div className="min-h-screen text-gray-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+      {/* Sleek Top Navbar */}
+      <header className="border-b border-white/[0.08] bg-[#07090E]/80 backdrop-blur-xl sticky top-0 z-50 px-6 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <Layers className="w-5 h-5 text-white" />
+          <div className="flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-[1px] shadow-lg shadow-blue-500/20">
+              <div className="w-full h-full bg-[#0B0F19] rounded-2xl flex items-center justify-center">
+                <Layers className="w-5 h-5 text-cyan-400" />
+              </div>
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-base font-bold text-gray-100 tracking-tight">AI System Design Reviewer</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
-                  GNN + Tarjan
+                <h1 className="text-base font-extrabold tracking-tight text-white">ArchSense AI</h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 border border-blue-500/30">
+                  GNN + Tarjan SCC
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">Hybrid Neuro-Symbolic Microservice Vulnerability & Refactoring Engine</p>
+              <p className="text-[11px] text-gray-400">Autonomous System Design Reviewer & Counterfactual Refactorer</p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav className="flex items-center space-x-1 bg-gray-900 p-1 rounded-xl border border-gray-800">
+          {/* Nav Tabs */}
+          <nav className="flex items-center space-x-1 bg-gray-950/80 p-1 rounded-xl border border-white/[0.06]">
             <button
               onClick={() => setActiveTab('review')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'review' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'review'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              <span>Review & Refactor</span>
+              <span>Reviewer & Canvas</span>
             </button>
             <button
               onClick={() => setActiveTab('studio')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'studio' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'studio'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-gray-400 hover:text-gray-200'
               }`}
             >
               <Code2 className="w-3.5 h-3.5" />
               <span>Topology Studio</span>
             </button>
-            <button
-              onClick={() => setActiveTab('viva')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'viva' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Defense & Viva Guide</span>
-            </button>
           </nav>
 
-          {/* Microservices Architecture Status Badges */}
-          <div className="hidden lg:flex items-center space-x-3 text-xs">
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-gray-900 border border-gray-800">
+          {/* Microservices Cluster Telemetry Status */}
+          <div className="hidden lg:flex items-center space-x-2.5 text-xs">
+            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-gray-950/70 border border-white/[0.06]">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-gray-300 font-mono">Java 21 :8080</span>
+              <span className="text-gray-300 font-mono text-[11px]">Java 21 :8080</span>
             </div>
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-gray-900 border border-gray-800">
+            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-gray-950/70 border border-white/[0.06]">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-              <span className="text-gray-300 font-mono">GNN :8000</span>
+              <span className="text-gray-300 font-mono text-[11px]">GNN :8000</span>
             </div>
-            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-gray-900 border border-gray-800">
+            <div className="flex items-center space-x-1.5 px-3 py-1 rounded-xl bg-gray-950/70 border border-white/[0.06]">
               <Database className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-gray-300 font-mono">PostgreSQL :5432</span>
+              <span className="text-gray-300 font-mono text-[11px]">PostgreSQL :5432</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
         {activeTab === 'review' && (
           <div className="space-y-6">
-            {/* GitHub Repository Extraction Bar */}
-            <div className="p-5 rounded-2xl bg-gradient-to-r from-gray-900 via-gray-900 to-indigo-950/40 border border-gray-800 shadow-xl">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* GitHub Repository Scanner Bar */}
+            <div className="rounded-2xl glass-surface border border-white/[0.08] p-5 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center space-x-2">
                     <GithubIcon className="w-5 h-5 text-gray-100" />
                     <h3 className="text-sm font-bold text-gray-100">Extract Architecture from GitHub Repository</h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                       Auto-Parser
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    Paste any public microservices repository URL. Scans <code className="text-cyan-400">docker-compose.yml</code>, manifests, and submodules, builds graph topology, and runs hybrid GNN inference.
+                    Paste any public repository URL. Scans <code className="text-cyan-400">docker-compose.yml</code>, manifests, and modules into graph tensors.
                   </p>
                 </div>
 
                 <div className="flex-1 max-w-xl flex items-center space-x-2">
                   <div className="relative flex-1">
-                    <GithubIcon className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+                    <GithubIcon className="w-4 h-4 absolute left-3.5 top-3 text-gray-500" />
                     <input
                       type="text"
                       value={githubUrl}
                       onChange={(e) => setGithubUrl(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeGithub()}
                       placeholder="https://github.com/owner/repository"
-                      className="w-full bg-gray-950 text-xs text-gray-100 pl-9 pr-4 py-2.5 rounded-xl border border-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                      className="w-full bg-gray-950/90 text-xs text-gray-100 pl-10 pr-4 py-2.5 rounded-xl border border-white/[0.08] focus:outline-none focus:border-cyan-500 font-mono transition-colors shadow-inner"
                     />
                   </div>
                   <button
                     disabled={isExtractingGithub || !githubUrl.trim()}
                     onClick={() => handleAnalyzeGithub()}
-                    className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center space-x-2 shadow-lg shadow-blue-500/20 transition-all"
+                    className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:opacity-90 disabled:opacity-50 text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-blue-500/20 transition-all active:scale-95"
                   >
                     {isExtractingGithub ? (
                       <>
                         <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Scanning Repo...</span>
+                        <span>Parsing...</span>
                       </>
                     ) : (
                       <>
@@ -545,15 +516,15 @@ export default function App() {
               </div>
 
               {githubError && (
-                <div className="mt-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+                <div className="mt-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
                   <span>{githubError}</span>
                 </div>
               )}
 
-              {/* Sample Repository Presets */}
-              <div className="mt-3.5 pt-3 border-t border-gray-800/80 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-gray-500 text-[11px] font-semibold">Quick Try Microservice Repos:</span>
+              {/* Sample Quick-Pills */}
+              <div className="mt-3.5 pt-3 border-t border-white/[0.04] flex flex-wrap items-center gap-2">
+                <span className="text-gray-500 text-[11px] font-semibold">Try Benchmark Microservice Repos:</span>
                 {[
                   { label: "Spring PetClinic Microservices", url: "https://github.com/spring-petclinic/spring-petclinic-microservices" },
                   { label: "Google Cloud Microservices Demo", url: "https://github.com/GoogleCloudPlatform/microservices-demo" },
@@ -566,30 +537,30 @@ export default function App() {
                       setGithubUrl(sample.url);
                       handleAnalyzeGithub(sample.url);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-gray-950 border border-gray-800 hover:border-gray-700 text-gray-300 hover:text-blue-400 text-[11px] transition-colors flex items-center space-x-1"
+                    className="px-2.5 py-1 rounded-lg bg-gray-950/70 border border-white/[0.06] hover:border-cyan-500/40 text-gray-300 hover:text-cyan-300 text-[11px] transition-all flex items-center space-x-1"
                   >
                     <span>{sample.label}</span>
-                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                    <ExternalLink className="w-2.5 h-2.5 opacity-50" />
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Architectural Presets Bar */}
-            <div className="p-4 rounded-2xl bg-gray-900/90 border border-gray-800 flex flex-wrap items-center justify-between gap-3">
+            {/* Benchmark Topologies Bar */}
+            <div className="p-3.5 rounded-2xl glass-surface border border-white/[0.06] flex flex-wrap items-center justify-between gap-3 shadow-xl">
               <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Benchmark Topologies:</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Synthetic Benchmark Architectures:</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {PRESET_TEMPLATES.map((tmpl) => (
                   <button
                     key={tmpl.name}
                     onClick={() => handleSelectTemplate(tmpl)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                       currentGraph.name === tmpl.name
-                        ? 'bg-blue-600/30 text-blue-300 border-blue-500/50 shadow'
-                        : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-700 hover:text-gray-200'
+                        ? 'bg-blue-600/30 text-blue-200 border-blue-500/60 shadow-lg shadow-blue-500/10'
+                        : 'bg-gray-950/60 text-gray-400 border-white/[0.06] hover:border-white/[0.15] hover:text-gray-200'
                     }`}
                   >
                     {tmpl.name}
@@ -598,7 +569,7 @@ export default function App() {
                 <button
                   disabled={isAnalyzing}
                   onClick={() => runAnalysis(currentGraph)}
-                  className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow"
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow transition-all active:scale-95"
                 >
                   <RotateCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
                   <span>Re-Evaluate</span>
@@ -606,20 +577,20 @@ export default function App() {
               </div>
             </div>
 
-            {/* Architecture Overview Banner */}
-            <div className="p-4 rounded-xl bg-gray-950/60 border border-gray-850 flex items-center justify-between">
+            {/* Active Graph Banner */}
+            <div className="p-4 rounded-xl glass-card flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-gray-100">{currentGraph.name}</h2>
+                <h2 className="text-base font-extrabold text-white">{currentGraph.name}</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{currentGraph.description}</p>
               </div>
-              <div className="flex items-center space-x-2 text-xs font-mono text-gray-400">
+              <div className="flex items-center space-x-2 text-xs font-mono text-cyan-400 bg-gray-950 px-3 py-1 rounded-lg border border-white/[0.06]">
                 <span>{currentGraph.nodes?.length} Nodes</span>
                 <span>•</span>
-                <span>{currentGraph.edges?.length} Edges</span>
+                <span>{currentGraph.edges?.length} Directed Edges</span>
               </div>
             </div>
 
-            {/* Interactive Canvas & Health Scores */}
+            {/* Topology Canvas & Health Radar */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
                 <TopologyCanvas
@@ -631,33 +602,33 @@ export default function App() {
 
                 {/* Node Inspector Drawer */}
                 {selectedNode && (
-                  <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-between text-xs animate-fadeIn">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold">
+                  <div className="p-4 rounded-xl glass-card flex items-center justify-between text-xs animate-fadeIn border-l-4 border-l-cyan-400">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 font-bold text-sm">
                         #{selectedNode.id}
                       </div>
                       <div>
-                        <span className="font-bold text-gray-200">{selectedNode.label}</span>
-                        <div className="text-[11px] text-gray-400 space-x-2">
-                          <span>Role: <strong className="text-gray-300">{selectedNode.node_type}</strong></span>
+                        <span className="font-bold text-gray-100 text-sm">{selectedNode.label}</span>
+                        <div className="text-[11px] text-gray-400 space-x-3 mt-0.5">
+                          <span>Role: <strong className="text-cyan-300 font-mono">{selectedNode.node_type}</strong></span>
                           <span>•</span>
-                          <span>Replicas: <strong className="text-gray-300">{selectedNode.replication_factor}</strong></span>
+                          <span>Replicas: <strong className="text-emerald-300 font-mono">{selectedNode.replication_factor}</strong></span>
                           <span>•</span>
-                          <span>Traffic RPS: <strong className="text-gray-300">{(selectedNode.traffic_weight * 100).toFixed(0)}%</strong></span>
+                          <span>Traffic Load: <strong className="text-amber-300 font-mono">{Math.round((selectedNode.traffic_weight || 0.5) * 100)}%</strong></span>
                         </div>
                       </div>
                     </div>
                     <button
                       onClick={() => setSelectedNode(null)}
-                      className="text-gray-500 hover:text-gray-300 px-2 py-1 rounded"
+                      className="text-gray-400 hover:text-gray-200 px-3 py-1 rounded-lg bg-gray-900 border border-white/[0.06]"
                     >
-                      Close
+                      Dismiss
                     </button>
                   </div>
                 )}
               </div>
 
-              <div className="space-y-6">
+              <div>
                 <HealthRadar
                   scores={analysisResult}
                   inferenceTimeMs={analysisResult?.inference_time_ms}
@@ -666,7 +637,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Counterfactual Refactoring Panel (Appears when refactoring simulated) */}
+            {/* Counterfactual Refactoring Simulation */}
             {refactorResult && (
               <CounterfactualPanel
                 result={refactorResult}
@@ -675,8 +646,8 @@ export default function App() {
               />
             )}
 
-            {/* Smells List & Recommendations */}
-            <div className="grid grid-cols-1 gap-6">
+            {/* Detected Architectural Smells */}
+            <div>
               <SmellList
                 smells={analysisResult?.smells || []}
                 recommendations={analysisResult?.counterfactual_recommendations || []}
@@ -687,21 +658,21 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 2: Topology Studio (JSON / Custom Graph Editor) */}
+        {/* Tab 2: Topology Studio (JSON Editor) */}
         {activeTab === 'studio' && (
           <div className="space-y-4">
-            <div className="p-5 rounded-2xl bg-gray-900 border border-gray-800">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+            <div className="rounded-2xl glass-surface border border-white/[0.08] p-6 shadow-2xl">
+              <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06] mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-200 uppercase">Microservice Graph Definition (JSON)</h3>
-                  <p className="text-xs text-gray-400">Edit nodes, edges, replication factors, and protocol attributes.</p>
+                  <h3 className="text-sm font-bold text-gray-100 uppercase tracking-wider">Topology Graph Descriptor (JSON)</h3>
+                  <p className="text-xs text-gray-400">Edit node types, replication factors, and protocol attributes directly.</p>
                 </div>
                 <button
                   onClick={handleApplyJson}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center space-x-2 shadow"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-blue-500/20"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  <span>Validate & Review Architecture</span>
+                  <span>Validate & Evaluate Architecture</span>
                 </button>
               </div>
 
@@ -709,21 +680,41 @@ export default function App() {
                 value={jsonInput}
                 onChange={(e) => setJsonInput(e.target.value)}
                 rows={22}
-                className="w-full bg-gray-950 font-mono text-xs text-emerald-400 p-4 rounded-xl border border-gray-800 focus:outline-none focus:border-blue-500"
+                className="w-full bg-gray-950/90 font-mono text-xs text-cyan-300 p-4 rounded-xl border border-white/[0.08] focus:outline-none focus:border-cyan-500 shadow-inner"
               />
             </div>
           </div>
         )}
 
-        {/* Tab 3: Viva & Technical Defense Guide */}
-        {activeTab === 'viva' && (
-          <VivaReport />
-        )}
+        {/* Diagnostic Stream Drawer */}
+        <div className="rounded-2xl glass-surface border border-white/[0.06] overflow-hidden">
+          <button
+            onClick={() => setShowConsole(!showConsole)}
+            className="w-full px-5 py-3 flex items-center justify-between text-xs font-bold text-gray-300 hover:text-white transition-colors"
+          >
+            <div className="flex items-center space-x-2">
+              <Terminal className="w-4 h-4 text-cyan-400" />
+              <span>Neuro-Symbolic Diagnostic Stream & Log Console</span>
+              <span className="text-gray-500">({diagnosticLogs.length} events)</span>
+            </div>
+            {showConsole ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showConsole && (
+            <div className="p-4 bg-gray-950 font-mono text-[11px] text-cyan-400/90 max-h-48 overflow-y-auto space-y-1 border-t border-white/[0.06]">
+              {diagnosticLogs.map((log, idx) => (
+                <div key={idx} className="leading-relaxed">
+                  <span className="text-gray-600">&gt;</span> {log}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-gray-850 bg-gray-950/70 py-4 px-6 text-center text-xs text-gray-500">
-        AI-Powered System Design Reviewer • Polyglot Architecture (Java 21 Spring Boot + Python PyTorch Geometric + PostgreSQL + React)
+      <footer className="mt-auto border-t border-white/[0.06] bg-[#07090E]/80 backdrop-blur-md py-4 px-6 text-center text-xs text-gray-500">
+        ArchSense AI • Hybrid Neuro-Symbolic Graph Neural Network (GraphSAGE + GATv2 + Tarjan SCC)
       </footer>
     </div>
   );
