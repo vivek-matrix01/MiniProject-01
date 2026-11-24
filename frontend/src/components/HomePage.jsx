@@ -27,7 +27,7 @@ import {
   Check
 } from 'lucide-react';
 
-export default function HomePage({ onSelectTemplate, onNavigateToReview, onNavigateToStudio, benchmarkTemplates }) {
+export default function HomePage({ onSelectTemplate, onNavigateToReview, onNavigateToStudio, onNavigateToBenchmarks, benchmarkTemplates }) {
   const features = [
     {
       title: "Automated Architectural Smell Detection",
@@ -432,13 +432,21 @@ export default function HomePage({ onSelectTemplate, onNavigateToReview, onNavig
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
               <FileText className="w-4 h-4 text-indigo-500" />
-              <span>Polyglot Enterprise Architecture & Examiner Defense</span>
+              <span>Polyglot Enterprise Architecture Overview</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Built on Java 21 Spring Boot 3 enterprise tier (:8080), Python FastAPI PyTorch Geometric engine (:8000), PostgreSQL 16 (:5432), and React 18 (:5173).
             </p>
           </div>
           <div className="flex items-center space-x-2">
+            {onNavigateToBenchmarks && (
+              <button
+                onClick={onNavigateToBenchmarks}
+                className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/80 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition-colors"
+              >
+                Model Benchmarks
+              </button>
+            )}
             <button
               onClick={onNavigateToReview}
               className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white text-xs font-bold transition-colors"

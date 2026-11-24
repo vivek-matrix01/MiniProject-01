@@ -26,7 +26,8 @@ import {
   Boxes,
   Home,
   Sun,
-  Moon
+  Moon,
+  Award
 } from 'lucide-react';
 
 import TopologyCanvas from './components/TopologyCanvas';
@@ -34,6 +35,7 @@ import HealthRadar from './components/HealthRadar';
 import SmellList from './components/SmellList';
 import CounterfactualPanel from './components/CounterfactualPanel';
 import HomePage from './components/HomePage';
+import ModelBenchmarks from './components/ModelBenchmarks';
 
 function GithubIcon({ className = "w-4 h-4" }) {
   return (
@@ -928,6 +930,17 @@ export default function App() {
               <Code2 className="w-3.5 h-3.5" />
               <span>Topology Studio</span>
             </button>
+            <button
+              onClick={() => setActiveTab('benchmarks')}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'benchmarks'
+                  ? 'bg-white dark:bg-gradient-to-r dark:from-blue-600 dark:to-cyan-600 text-indigo-700 dark:text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" />
+              <span>Model Benchmarks</span>
+            </button>
           </nav>
 
           {/* Right Controls: Telemetry & Theme Switcher */}
@@ -978,7 +991,15 @@ export default function App() {
             onSelectTemplate={handleSelectTemplate}
             onNavigateToReview={() => setActiveTab('review')}
             onNavigateToStudio={() => setActiveTab('studio')}
+            onNavigateToBenchmarks={() => setActiveTab('benchmarks')}
             benchmarkTemplates={PRESET_TEMPLATES}
+          />
+        )}
+
+        {/* Tab: AI Model Benchmarks & Viva Defense */}
+        {activeTab === 'benchmarks' && (
+          <ModelBenchmarks
+            onNavigateToReview={() => setActiveTab('review')}
           />
         )}
 
@@ -1241,7 +1262,7 @@ export default function App() {
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-200 dark:border-white/[0.06] bg-white/80 dark:bg-[#07090E]/80 backdrop-blur-md py-4 px-6 text-center text-xs text-slate-500 dark:text-gray-500 flex items-center justify-between max-w-7xl mx-auto w-full">
         <span>ArchSense AI • Hybrid Neuro-Symbolic Graph Neural Network</span>
-        <span className="text-slate-500 dark:text-gray-600 font-mono text-[11px]">Examiner Guide: VIVA_QUESTIONS_AND_DEFENSE.md</span>
+        <span className="text-slate-500 dark:text-gray-600 font-mono text-[11px]">Empirical Model Specification & Telemetry Engine</span>
       </footer>
     </div>
   );
