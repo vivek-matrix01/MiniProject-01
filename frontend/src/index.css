@@ -4,51 +4,84 @@
 
 :root {
   color-scheme: light dark;
-  --bg-dark: #07090E;
-  --card-dark: rgba(13, 17, 28, 0.7);
-  --border-glass: rgba(255, 255, 255, 0.08);
+  --bg-primary: #F8FAFC;
+  --bg-surface: rgba(255, 255, 255, 0.88);
+  --bg-card: #FFFFFF;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --border-subtle: rgba(148, 163, 184, 0.25);
+  --border-card: #E2E8F0;
+  --dot-color: rgba(100, 116, 139, 0.14);
+  --scrollbar-thumb: #CBD5E1;
+  --scrollbar-track: #F1F5F9;
+  --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+}
+
+.dark {
+  --bg-primary: #07090E;
+  --bg-surface: rgba(15, 23, 42, 0.75);
+  --bg-card: rgba(17, 24, 39, 0.85);
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.1);
+  --dot-color: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb: #334155;
+  --scrollbar-track: #0F172A;
+  --shadow-card: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg-dark);
-  color: #F3F4F6;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-  scrollbar-color: #2D3748 #0F172A;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-width: thin;
+  background-image: 
+    radial-gradient(circle at 15% 10%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.04) 0%, transparent 45%);
+  background-attachment: fixed;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.dark body {
   background-image: 
     radial-gradient(circle at 15% 10%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.05) 0%, transparent 45%);
-  background-attachment: fixed;
 }
 
 /* Polka dot grid texture */
 .grid-canvas {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
 }
 
 /* Glassmorphism Surface */
 .glass-surface {
-  background: rgba(15, 23, 42, 0.65);
+  background: var(--bg-surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
 }
 
 .glass-card {
-  background: rgba(17, 24, 39, 0.6);
+  background: var(--bg-card);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--shadow-card);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-card:hover {
-  border-color: rgba(96, 165, 250, 0.25);
+  border-color: rgba(59, 130, 246, 0.4);
   transform: translateY(-1px);
 }
 
@@ -88,10 +121,10 @@ body {
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #0B0F19;
+    background: var(--scrollbar-track);
   }
   ::-webkit-scrollbar-thumb {
-    background: #1F2937;
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
 }

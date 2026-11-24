@@ -1,7 +1,45 @@
 import React, { useState } from 'react';
 import { Server, Database, HardDrive, Inbox, ShieldCheck, AlertCircle, Eye, Filter, RefreshCw, Zap } from 'lucide-react';
 
-const NODE_THEMES = {
+const NODE_THEMES_LIGHT = {
+  Gateway: {
+    bg: '#EFF6FF',
+    border: '#2563EB',
+    text: '#1D4ED8',
+    glow: 'rgba(37, 99, 235, 0.25)',
+    accent: '#3B82F6'
+  },
+  Service: {
+    bg: '#ECFDF5',
+    border: '#059669',
+    text: '#047857',
+    glow: 'rgba(5, 150, 105, 0.25)',
+    accent: '#10B981'
+  },
+  Database: {
+    bg: '#FFFBEB',
+    border: '#D97706',
+    text: '#B45309',
+    glow: 'rgba(217, 119, 6, 0.25)',
+    accent: '#F59E0B'
+  },
+  Cache: {
+    bg: '#FDF2F8',
+    border: '#DB2777',
+    text: '#BE185D',
+    glow: 'rgba(219, 39, 119, 0.25)',
+    accent: '#EC4899'
+  },
+  Queue: {
+    bg: '#F5F3FF',
+    border: '#7C3AED',
+    text: '#6D28D9',
+    glow: 'rgba(124, 58, 237, 0.25)',
+    accent: '#8B5CF6'
+  },
+};
+
+const NODE_THEMES_DARK = {
   Gateway: {
     bg: '#0F2347',
     border: '#3B82F6',
@@ -39,16 +77,18 @@ const NODE_THEMES = {
   },
 };
 
-export default function TopologyCanvas({ graph, smells = [], selectedNode, onSelectNode }) {
+export default function TopologyCanvas({ graph, smells = [], selectedNode, onSelectNode, isDark = false }) {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'SMELLS' | 'SERVICES' | 'DATABASES'
 
+  const themes = isDark ? NODE_THEMES_DARK : NODE_THEMES_LIGHT;
+
   if (!graph || !graph.nodes || graph.nodes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[520px] rounded-2xl glass-surface border border-gray-800 text-gray-500">
-        <Server className="w-10 h-10 mb-3 opacity-30 animate-pulse text-blue-400" />
-        <p className="text-sm font-medium text-gray-400">No architecture topology loaded</p>
-        <p className="text-xs text-gray-600 mt-1">Paste a GitHub link or select a benchmark preset to visualize.</p>
+      <div className="flex flex-col items-center justify-center h-[520px] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 shadow-sm">
+        <Server className="w-10 h-10 mb-3 opacity-40 animate-pulse text-indigo-500" />
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No architecture topology loaded</p>
+        <p className="text-xs text-slate-500 mt-1">Paste a GitHub link or select a benchmark preset to visualize.</p>
       </div>
     );
   }
@@ -90,7 +130,7 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
   const dataTier = [...dbs, ...caches, ...queues];
   placeRow(dataTier, 410);
 
-  // Fallback for any node
+  // Fallback for any unplaced node
   nodes.forEach((n, idx) => {
     if (!positions[n.id]) {
       positions[n.id] = { x: 100 + (idx * 110) % (width - 200), y: 280 };
@@ -115,20 +155,20 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
   };
 
   return (
-    <div className="relative w-full h-[520px] rounded-2xl glass-surface border border-white/[0.08] overflow-hidden shadow-2xl">
+    <div className="relative w-full h-[520px] rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-white/10 overflow-hidden shadow-sm">
       {/* Top Controls Bar */}
       <div className="absolute top-3.5 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="pointer-events-auto flex items-center space-x-2 bg-gray-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.06] shadow-lg">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="text-xs font-bold text-gray-200 tracking-wide uppercase">Live Topology Graph</span>
-          <span className="text-gray-600">•</span>
-          <span className="text-[11px] font-mono text-cyan-400">{nodes.length} Components</span>
-          <span className="text-gray-600">•</span>
-          <span className="text-[11px] font-mono text-indigo-400">{edges.length} Links</span>
+        <div className="pointer-events-auto flex items-center space-x-2 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase">Live Topology Graph</span>
+          <span className="text-slate-300 dark:text-gray-600">•</span>
+          <span className="text-[11px] font-mono text-indigo-600 dark:text-cyan-400 font-bold">{nodes.length} Components</span>
+          <span className="text-slate-300 dark:text-gray-600">•</span>
+          <span className="text-[11px] font-mono text-purple-600 dark:text-indigo-400 font-bold">{edges.length} Links</span>
         </div>
 
         {/* Filter Pills */}
-        <div className="pointer-events-auto flex items-center space-x-1 bg-gray-950/80 backdrop-blur-md p-1 rounded-xl border border-white/[0.06] shadow-lg">
+        <div className="pointer-events-auto flex items-center space-x-1 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md p-1 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
           {[
             { id: 'ALL', label: 'All' },
             { id: 'SMELLS', label: `Smells (${smells.length})` },
@@ -138,10 +178,10 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
             <button
               key={f.id}
               onClick={() => setFilterType(f.id)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                 filterType === f.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.04]'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-white/[0.04]'
               }`}
             >
               {f.label}
@@ -154,27 +194,27 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
       <svg className="w-full h-full grid-canvas" viewBox={`0 0 ${width} ${height}`}>
         <defs>
           <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feGaussianBlur stdDeviation="5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
 
-          <marker id="arrow-sync-glow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#60A5FA" />
+          <marker id="arrow-sync" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill={isDark ? '#60A5FA' : '#2563EB'} />
           </marker>
-          <marker id="arrow-async-glow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#A78BFA" />
+          <marker id="arrow-async" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill={isDark ? '#A78BFA' : '#7C3AED'} />
           </marker>
         </defs>
 
         {/* Tier Guidelines */}
-        <g opacity="0.3">
-          <line x1="30" y1="150" x2={width - 30} y2="150" stroke="#374151" strokeDasharray="3 4" />
-          <text x="40" y="142" fill="#6B7280" fontSize="9" fontWeight="bold" letterSpacing="0.1em">INGRESS & GATEWAY TIER</text>
+        <g opacity={isDark ? 0.35 : 0.65}>
+          <line x1="30" y1="150" x2={width - 30} y2="150" stroke={isDark ? '#374151' : '#CBD5E1'} strokeDasharray="3 4" />
+          <text x="40" y="142" fill={isDark ? '#6B7280' : '#64748B'} fontSize="9" fontWeight="bold" letterSpacing="0.1em">INGRESS & GATEWAY TIER</text>
 
-          <line x1="30" y1="320" x2={width - 30} y2="320" stroke="#374151" strokeDasharray="3 4" />
-          <text x="40" y="312" fill="#6B7280" fontSize="9" fontWeight="bold" letterSpacing="0.1em">DOMAIN SERVICES & BOUNDED CONTEXTS</text>
+          <line x1="30" y1="320" x2={width - 30} y2="320" stroke={isDark ? '#374151' : '#CBD5E1'} strokeDasharray="3 4" />
+          <text x="40" y="312" fill={isDark ? '#6B7280' : '#64748B'} fontSize="9" fontWeight="bold" letterSpacing="0.1em">DOMAIN SERVICES & BOUNDED CONTEXTS</text>
 
-          <text x="40" y="495" fill="#6B7280" fontSize="9" fontWeight="bold" letterSpacing="0.1em">DATA STORES, CACHES & EVENT BROKERS</text>
+          <text x="40" y="495" fill={isDark ? '#6B7280' : '#64748B'} fontSize="9" fontWeight="bold" letterSpacing="0.1em">DATA STORES, CACHES & EVENT BROKERS</text>
         </g>
 
         {/* Edges with animated flowing dashes */}
@@ -191,17 +231,20 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
           const midX = (p1.x + p2.x) / 2;
           const midY = (p1.y + p2.y) / 2;
 
+          const edgeColor = isAsync ? (isDark ? '#A78BFA' : '#7C3AED') : (isDark ? '#60A5FA' : '#2563EB');
+          const edgeFlowColor = isAsync ? (isDark ? '#DDD6FE' : '#9333EA') : (isDark ? '#93C5FD' : '#1D4ED8');
+
           return (
             <g key={`edge-${idx}`} opacity={isFaded ? 0.15 : 1} className="transition-opacity duration-300">
-              {/* Underlying glow path */}
+              {/* Underlying thick path */}
               <line
                 x1={p1.x}
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={isAsync ? '#8B5CF6' : '#3B82F6'}
-                strokeWidth={Math.max(2, (edge.frequency || 0.5) * 4)}
-                strokeOpacity={0.25}
+                stroke={edgeColor}
+                strokeWidth={Math.max(2, (edge.frequency || 0.5) * 3.5)}
+                strokeOpacity={isDark ? 0.25 : 0.2}
               />
               {/* Animated foreground flowing dashed line */}
               <line
@@ -209,28 +252,28 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={isAsync ? '#C4B5FD' : '#93C5FD'}
+                stroke={edgeFlowColor}
                 strokeWidth="1.8"
                 strokeDasharray="6 6"
                 className="edge-flow"
-                markerEnd={isAsync ? 'url(#arrow-async-glow)' : 'url(#arrow-sync-glow)'}
+                markerEnd={isAsync ? 'url(#arrow-async)' : 'url(#arrow-sync)'}
               />
               {/* Protocol pill */}
               <rect
-                x={midX - 16}
+                x={midX - 17}
                 y={midY - 8}
-                width="32"
+                width="34"
                 height="16"
                 rx="4"
-                fill="#0B0F19"
-                stroke={isAsync ? '#8B5CF6' : '#3B82F6'}
-                strokeWidth="0.8"
-                strokeOpacity="0.6"
+                fill={isDark ? '#0B0F19' : '#FFFFFF'}
+                stroke={edgeColor}
+                strokeWidth="1"
+                strokeOpacity={isDark ? 0.6 : 0.4}
               />
               <text
                 x={midX}
                 y={midY + 3.5}
-                fill={isAsync ? '#DDD6FE' : '#93C5FD'}
+                fill={isDark ? (isAsync ? '#DDD6FE' : '#93C5FD') : (isAsync ? '#6B21A8' : '#1E40AF')}
                 fontSize="8"
                 fontFamily="monospace"
                 fontWeight="bold"
@@ -248,7 +291,7 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
           const p = positions[node.id];
           if (!p) return null;
 
-          const theme = NODE_THEMES[node.node_type] || NODE_THEMES.Service;
+          const theme = themes[node.node_type] || themes.Service;
           const isSelected = selectedNode && selectedNode.id === node.id;
           const isHovered = hoveredNode === node.id;
           const nodeSmells = nodeSmellMap[node.id] || [];
@@ -271,7 +314,7 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
                 <circle
                   r="34"
                   fill="none"
-                  stroke="#F43F5E"
+                  stroke="#E11D48"
                   strokeWidth="2"
                   className="pulse-node"
                 />
@@ -281,8 +324,8 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
               <circle
                 r="24"
                 fill={theme.bg}
-                stroke={hasCriticalSmell ? '#F43F5E' : isSelected ? '#38BDF8' : theme.border}
-                strokeWidth={isSelected ? 3.5 : hasSmell ? 2.5 : 1.8}
+                stroke={hasCriticalSmell ? '#E11D48' : isSelected ? '#4F46E5' : theme.border}
+                strokeWidth={isSelected ? 3.5 : hasSmell ? 2.5 : 2}
                 filter={isSelected || isHovered ? 'url(#node-glow)' : 'none'}
               />
 
@@ -299,13 +342,13 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
                   width="110"
                   height="20"
                   rx="6"
-                  fill="#0B0F19"
-                  stroke={isSelected ? '#38BDF8' : 'rgba(255, 255, 255, 0.1)'}
-                  strokeWidth="1"
+                  fill={isDark ? '#0B0F19' : '#FFFFFF'}
+                  stroke={isSelected ? '#4F46E5' : (isDark ? 'rgba(255, 255, 255, 0.1)' : '#CBD5E1')}
+                  strokeWidth="1.2"
                 />
                 <text
                   y="4"
-                  fill="#F3F4F6"
+                  fill={isDark ? '#F3F4F6' : '#0F172A'}
                   fontSize="10"
                   fontWeight="600"
                   textAnchor="middle"
@@ -318,7 +361,7 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
               {/* Replicas & RPS Badge above */}
               <g transform="translate(0, -32)">
                 <text
-                  fill="#94A3B8"
+                  fill={isDark ? '#94A3B8' : '#475569'}
                   fontSize="9"
                   fontWeight="600"
                   textAnchor="middle"
@@ -331,7 +374,7 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
               {/* Smell Indicator Alert Pip */}
               {hasSmell && (
                 <g transform="translate(16, -18)">
-                  <circle r="8" fill="#F43F5E" stroke="#0B0F19" strokeWidth="2" />
+                  <circle r="8" fill="#E11D48" stroke={isDark ? '#0B0F19' : '#FFFFFF'} strokeWidth="2" />
                   <text y="3" textAnchor="middle" fill="#FFFFFF" fontSize="9" fontWeight="bold">!</text>
                 </g>
               )}
@@ -342,18 +385,18 @@ export default function TopologyCanvas({ graph, smells = [], selectedNode, onSel
 
       {/* Bottom Canvas Footer / Legend */}
       <div className="absolute bottom-3 left-4 right-4 z-10 flex flex-wrap items-center justify-between text-xs pointer-events-none">
-        <div className="pointer-events-auto flex items-center space-x-3 bg-gray-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.06]">
-          {Object.entries(NODE_THEMES).map(([type, c]) => (
+        <div className="pointer-events-auto flex items-center space-x-3 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
+          {Object.entries(themes).map(([type, c]) => (
             <div key={type} className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.border }} />
-              <span className="text-[11px] text-gray-300 font-medium">{type}</span>
+              <span className="text-[11px] text-slate-700 dark:text-gray-300 font-semibold">{type}</span>
             </div>
           ))}
         </div>
 
-        <div className="pointer-events-auto flex items-center space-x-2 text-[11px] text-gray-400 bg-gray-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.06]">
-          <span className="text-blue-400 font-mono">━━</span> <span>Sync REST/gRPC</span>
-          <span className="text-purple-400 font-mono">┅┅</span> <span>Async Queue/Event</span>
+        <div className="pointer-events-auto flex items-center space-x-2 text-[11px] text-slate-600 dark:text-gray-400 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-sm">
+          <span className="text-blue-600 dark:text-blue-400 font-mono font-bold">━━</span> <span>Sync REST/gRPC</span>
+          <span className="text-purple-600 dark:text-purple-400 font-mono font-bold">┅┅</span> <span>Async Queue/Event</span>
         </div>
       </div>
     </div>

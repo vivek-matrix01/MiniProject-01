@@ -146,34 +146,118 @@ def analyze_github_repo(req: GitHubRequestModel):
             tree_res = requests.get(f"https://api.github.com/repos/{owner}/{repo}/git/trees/{req.branch}?recursive=1", headers=headers, timeout=5)
             if tree_res.status_code == 200:
                 files = [item.get("path", "") for item in tree_res.json().get("tree", [])]
+                
+                # Check for top-level microservice directories
+                detected_folders = set()
+                for p in files:
+                    parts = p.split("/")
+                    if len(parts) >= 2 and parts[0] not in [".github", ".git", ".system_generated", "docs", "test"]:
+                        detected_folders.add(parts[0])
+
+                # Check for docker-compose
                 compose_file = next((f for f in files if "docker-compose" in f or "compose.yaml" in f or "compose.yml" in f), None)
+                compose_services = []
                 if compose_file:
                     raw_res = requests.get(f"https://raw.githubusercontent.com/{owner}/{repo}/{req.branch}/{compose_file}", timeout=5)
                     if raw_res.status_code == 200:
                         lines = raw_res.text.splitlines()
-                        extracted_services = []
                         for line in lines:
                             trimmed = line.strip()
                             if line.startswith("  ") and not line.startswith("    ") and trimmed.endswith(":") and not trimmed.startswith("-"):
                                 svc_name = trimmed[:-1]
                                 if svc_name not in ["version", "services", "networks", "volumes"]:
-                                    extracted_services.append(svc_name)
-                        if extracted_services:
-                            nodes = [{"id": 0, "label": "API Gateway", "node_type": "Gateway", "is_stateful": 0, "replication_factor": 2, "traffic_weight": 0.85}]
-                            edges = []
-                            for idx, s in enumerate(extracted_services[:8], start=1):
-                                is_db = any(k in s.lower() for k in ["db", "postgres", "sql", "mongo"])
-                                is_q = any(k in s.lower() for k in ["queue", "kafka", "rabbit"])
-                                is_c = any(k in s.lower() for k in ["cache", "redis"])
-                                ntype = "Database" if is_db else "Queue" if is_q else "Cache" if is_c else "Service"
-                                is_st = 1 if (is_db or is_q or is_c) else 0
-                                nodes.append({"id": idx, "label": s, "node_type": ntype, "is_stateful": is_st, "replication_factor": 1, "traffic_weight": 0.65})
-                                if ntype == "Service":
-                                    edges.append({"source": 0, "target": idx, "protocol": "REST", "sync_nature": 1, "frequency": 0.75})
-                                elif ntype == "Database":
-                                    edges.append({"source": 1, "target": idx, "protocol": "JDBC", "sync_nature": 1, "frequency": 0.75})
-                                elif ntype == "Queue":
-                                    edges.append({"source": 1, "target": idx, "protocol": "AMQP", "sync_nature": 0, "frequency": 0.50})
+                                    compose_services.append(svc_name)
+
+                # Dynamically discover active code modules from repository tree
+                discovered_modules = set()
+                for p in files:
+                    parts = p.split("/")
+                    if len(parts) >= 2 and parts[0] not in [".github", ".git", ".system_generated", "docs", "test"]:
+                        filename = parts[-1]
+                        if filename in ["pom.xml", "build.gradle", "package.json", "requirements.txt", "Dockerfile", "go.mod", "Cargo.toml"]:
+                            discovered_modules.add(parts[0])
+
+                # Combine discovered directory modules and docker compose services
+                nodes = []
+                edges = []
+                component_map = {}
+                id_counter = 0
+
+                def register_node(label, preferred_type, replicas=1, is_stateful=0, traffic=0.70):
+                    nonlocal id_counter
+                    if label in component_map:
+                        return component_map[label]["id"]
+                    node = {
+                        "id": id_counter,
+                        "label": label,
+                        "node_type": preferred_type,
+                        "is_stateful": is_stateful,
+                        "replication_factor": replicas,
+                        "traffic_weight": traffic
+                    }
+                    component_map[label] = node
+                    nodes.append(node)
+                    id_counter += 1
+                    return node["id"]
+
+                def classify(name):
+                    lower = name.lower()
+                    if any(k in lower for k in ["gateway", "ingress", "frontend", "ui", "web", "client", "nginx"]):
+                        return "Gateway", 0, 2, 0.85
+                    if any(k in lower for k in ["postgres", "mysql", "mongo", "db", "database", "mariadb", "sql"]):
+                        return "Database", 1, 1, 0.90
+                    if any(k in lower for k in ["redis", "cache", "memcached"]):
+                        return "Cache", 1, 1, 0.65
+                    if any(k in lower for k in ["kafka", "rabbit", "queue", "broker", "amqp"]):
+                        return "Queue", 1, 2, 0.60
+                    return "Service", 0, 1, 0.75
+
+                for mod in sorted(discovered_modules):
+                    ntype, st, rep, tr = classify(mod)
+                    register_node(mod, ntype, rep, st, tr)
+
+                for svc in compose_services:
+                    ntype, st, rep, tr = classify(svc)
+                    register_node(svc, ntype, rep, st, tr)
+
+                if not nodes:
+                    register_node(f"{repo}-api", "Service", 1, 0, 0.75)
+                    register_node("Database", "Database", 1, 1, 0.85)
+
+                # Ensure at least one Ingress Gateway if multi-service
+                gw_nodes = [n for n in nodes if n["node_type"] == "Gateway"]
+                svc_nodes = [n for n in nodes if n["node_type"] == "Service"]
+                db_nodes = [n for n in nodes if n["node_type"] == "Database"]
+                q_nodes = [n for n in nodes if n["node_type"] == "Queue"]
+                cache_nodes = [n for n in nodes if n["node_type"] == "Cache"]
+
+                if not gw_nodes and len(nodes) >= 2:
+                    gw_id = register_node("API Gateway", "Gateway", 2, 0, 0.85)
+                    gw_nodes = [component_map["API Gateway"]]
+
+                # Gateway -> Services
+                for gw in gw_nodes:
+                    for svc in svc_nodes:
+                        edges.append({"source": gw["id"], "target": svc["id"], "protocol": "REST", "sync_nature": 1, "frequency": 0.85})
+
+                # Service inter-collaboration
+                if len(svc_nodes) > 1:
+                    for i in range(len(svc_nodes) - 1):
+                        edges.append({"source": svc_nodes[i]["id"], "target": svc_nodes[i + 1]["id"], "protocol": "REST", "sync_nature": 1, "frequency": 0.75})
+
+                # Services -> Data Stores & Queues
+                for svc in svc_nodes:
+                    for db in db_nodes:
+                        edges.append({"source": svc["id"], "target": db["id"], "protocol": "JDBC", "sync_nature": 1, "frequency": 0.80})
+                    for cache in cache_nodes:
+                        edges.append({"source": svc["id"], "target": cache["id"], "protocol": "REST", "sync_nature": 1, "frequency": 0.65})
+                    for q in q_nodes:
+                        edges.append({"source": svc["id"], "target": q["id"], "protocol": "AMQP", "sync_nature": 0, "frequency": 0.50})
+
+                if not svc_nodes and db_nodes and gw_nodes:
+                    for gw in gw_nodes:
+                        for db in db_nodes:
+                            edges.append({"source": gw["id"], "target": db["id"], "protocol": "JDBC", "sync_nature": 1, "frequency": 0.90})
         except Exception:
             pass
 

@@ -145,7 +145,9 @@ public class GitHubArchitectureExtractorService {
                 String folder = segments[0].toLowerCase();
                 if (folder.contains("service") || folder.contains("api") || folder.contains("gateway") ||
                     folder.contains("auth") || folder.contains("order") || folder.contains("payment") ||
-                    folder.contains("inventory") || folder.contains("user") || folder.contains("notification")) {
+                    folder.contains("inventory") || folder.contains("user") || folder.contains("notification") ||
+                    folder.equals("backend") || folder.equals("frontend") || folder.contains("ai-engine") ||
+                    folder.equals("server") || folder.equals("client") || folder.equals("engine")) {
                     detectedServices.add(segments[0]);
                 }
             }
